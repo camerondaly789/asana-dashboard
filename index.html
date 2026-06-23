@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMA Asana Reports | Idaho Medical Academy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red: #CA0D0C;
+      --black: #000000;
+      --white: #FFFFFF;
+      --gray-light: #F5F5F5;
+      --gray-dark: #555555;
+      --gray-mid: #DDDDDD;
+      --green: #2d7a2d;
+      --green-bg: #eaf3ea;
+      --yellow: #8a6000;
+      --yellow-bg: #fff8e1;
+      --red-status: #a32d2d;
+      --red-bg: #fdeaea;
+      --blue: #185FA5;
+      --blue-bg: #e6f1fb;
+    }
+
+    body {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      background: var(--gray-light);
+      color: var(--black);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .site-header {
+      background: var(--white);
+      border-bottom: 3px solid var(--red);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-logo {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--red);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 15px; letter-spacing: 0.5px;
+    }
+    .header-title { font-size: 18px; font-weight: 700; color: var(--black); }
+    .header-title span { color: var(--red); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .last-sync { font-size: 12px; color: var(--gray-dark); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 13px; font-weight: 700;
+      padding: 7px 14px; border-radius: 4px;
+      border: none; cursor: pointer; text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--red); color: white; }
+    .btn-outline { background: transparent; border: 1.5px solid var(--gray-mid); color: var(--black); }
+
+    /* ── Layout ── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* ── Controls bar ── */
+    .controls {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      background: var(--white);
+      border: 1px solid var(--gray-mid);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 1.5rem;
+    }
+    .controls-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .filter-label { font-size: 13px; color: var(--gray-dark); font-weight: 700; }
+    .filter-btn {
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 12px; padding: 5px 12px;
+      border-radius: 99px; border: 1.5px solid var(--gray-mid);
+      background: transparent; cursor: pointer; color: var(--black);
+      transition: all 0.15s;
+    }
+    .filter-btn.active { background: var(--red); color: white; border-color: var(--red); }
+    .filter-btn:hover:not(.active) { border-color: var(--red); color: var(--red); }
+    select.period-select {
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 13px; padding: 6px 10px;
+      border: 1.5px solid var(--gray-mid); border-radius: 4px;
+      background: white; color: var(--black); cursor: pointer;
+    }
+
+    /* ── Summary strip ── */
+    .summary-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .summary-card {
+      background: var(--white); border: 1px solid var(--gray-mid);
+      border-radius: 6px; padding: 14px 16px;
+    }
+    .summary-card-label { font-size: 11px; color: var(--gray-dark); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .summary-card-value { font-size: 28px; font-weight: 700; color: var(--black); line-height: 1; }
+    .summary-card-sub { font-size: 12px; color: var(--gray-dark); margin-top: 4px; }
+    .summary-card.accent { border-left: 4px solid var(--red); }
+
+    /* ── Section header ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .section-title { font-size: 16px; font-weight: 700; color: var(--black); }
+    .period-tag {
+      font-size: 12px; color: var(--gray-dark);
+      background: var(--gray-light); border: 1px solid var(--gray-mid);
+      border-radius: 4px; padding: 3px 10px;
+    }
+
+    /* ── Department cards ── */
+    .dept-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 800px) { .dept-grid { grid-template-columns: 1fr; } }
+
+    .dept-card {
+      background: var(--white); border: 1px solid var(--gray-mid);
+      border-radius: 8px; overflow: hidden;
+    }
+    .dept-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    .dept-info { display: flex; align-items: center; gap: 10px; }
+    .dept-icon-badge {
+      width: 36px; height: 36px; border-radius: 6px;
+      background: var(--gray-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .dept-name { font-size: 15px; font-weight: 700; }
+    .dept-lead { font-size: 12px; color: var(--gray-dark); margin-top: 1px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 99px;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .pill-green { background: var(--green-bg); color: var(--green); }
+    .pill-green .status-dot { background: var(--green); }
+    .pill-yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .pill-yellow .status-dot { background: #e6a000; }
+    .pill-red { background: var(--red-bg); color: var(--red-status); }
+    .pill-red .status-dot { background: var(--red-status); }
+    .pill-gray { background: var(--gray-light); color: var(--gray-dark); }
+    .pill-gray .status-dot { background: var(--gray-dark); }
+    .pill-achieved { background: #e6f1fb; color: #185FA5; }
+    .pill-achieved .status-dot { background: #185FA5; }
+
+    .dept-card-body { padding: 14px 16px; }
+
+    .progress-section { margin-bottom: 12px; }
+    .progress-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .progress-row-label { font-size: 12px; color: var(--gray-dark); }
+    .progress-row-pct { font-size: 13px; font-weight: 700; }
+    .progress-track { background: var(--gray-light); border-radius: 99px; height: 5px; }
+    .progress-fill { height: 5px; border-radius: 99px; transition: width 0.6s ease; }
+    .fill-green { background: var(--green); }
+    .fill-yellow { background: #e6a000; }
+    .fill-red { background: var(--red-status); }
+
+    .divider { border: none; border-top: 1px solid var(--gray-light); margin: 10px 0; }
+
+    .summary-text {
+      font-size: 13px; color: var(--black); line-height: 1.65;
+      margin-bottom: 10px;
+    }
+
+    .wins-label, .blockers-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 6px;
+    }
+    .wins-label { color: var(--green); }
+    .blockers-label { color: var(--yellow); }
+
+    .wins-list, .blockers-list { list-style: none; margin-bottom: 10px; }
+    .wins-list li, .blockers-list li {
+      display: flex; align-items: flex-start; gap: 7px;
+      font-size: 13px; line-height: 1.5; padding: 3px 0;
+    }
+    .win-icon { color: var(--green); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .block-icon { color: #e6a000; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+    .expand-toggle {
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 12px; color: var(--red);
+      background: none; border: none; cursor: pointer;
+      padding: 4px 0; display: flex; align-items: center; gap: 4px;
+    }
+    .expand-toggle:hover { text-decoration: underline; }
+
+    .expanded-section { display: none; }
+    .expanded-section.open { display: block; }
+
+    .milestones-table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; }
+    .milestones-table td { font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--gray-light); vertical-align: middle; }
+    .milestones-table tr:last-child td { border-bottom: none; }
+    .milestones-table td:last-child { text-align: right; }
+    .ms-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+    .ms-complete { background: var(--green-bg); color: var(--green); }
+    .ms-progress { background: var(--blue-bg); color: var(--blue); }
+    .ms-blocked { background: var(--yellow-bg); color: var(--yellow); }
+
+    .next-steps-box {
+      background: var(--gray-light); border-radius: 4px;
+      padding: 10px 12px; font-size: 13px; line-height: 1.6;
+      color: var(--black); margin-top: 8px;
+    }
+    .next-steps-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-dark); margin-bottom: 4px; }
+
+    .card-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--gray-light);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--gray-light);
+    }
+    .card-footer-date { font-size: 11px; color: var(--gray-dark); }
+
+    /* ── History timeline ── */
+    .history-section { margin-top: 2rem; }
+    .history-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .history-title { font-size: 16px; font-weight: 700; }
+    .history-count {
+      background: var(--red); color: white;
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 99px;
+    }
+
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline::before {
+      content: ''; position: absolute; left: 7px; top: 8px; bottom: 8px;
+      width: 2px; background: var(--gray-mid);
+    }
+    .timeline-item { position: relative; margin-bottom: 20px; }
+    .timeline-dot {
+      position: absolute; left: -20px; top: 4px;
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 2px var(--gray-mid);
+    }
+    .dot-g { background: var(--green); box-shadow: 0 0 0 2px var(--green); }
+    .dot-y { background: #e6a000; box-shadow: 0 0 0 2px #e6a000; }
+    .dot-r { background: var(--red-status); box-shadow: 0 0 0 2px var(--red-status); }
+    .dot-b { background: var(--blue); box-shadow: 0 0 0 2px var(--blue); }
+
+    .timeline-card {
+      background: var(--white); border: 1px solid var(--gray-mid);
+      border-radius: 6px; padding: 12px 14px;
+    }
+    .timeline-card-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 8px; gap: 8px;
+    }
+    .timeline-card-title { font-size: 13px; font-weight: 700; line-height: 1.4; }
+    .timeline-card-dept {
+      font-size: 11px; color: var(--gray-dark);
+      background: var(--gray-light); border: 1px solid var(--gray-mid);
+      padding: 2px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+    }
+    .timeline-card-text { font-size: 12px; color: var(--gray-dark); line-height: 1.6; }
+    .timeline-card-date { font-size: 11px; color: var(--gray-dark); margin-top: 8px; }
+
+    /* ── Empty / loading states ── */
+    .loading-block {
+      text-align: center; padding: 3rem;
+      color: var(--gray-dark); font-size: 14px;
+    }
+    .spinner {
+      display: inline-block; width: 24px; height: 24px;
+      border: 3px solid var(--gray-mid);
+      border-top-color: var(--red);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-block {
+      background: var(--red-bg); border: 1px solid #f5c1c1;
+      border-radius: 6px; padding: 14px 16px;
+      font-size: 13px; color: var(--red-status); margin: 1rem 0;
+    }
+
+    /* ── Footer ── */
+    .site-footer {
+      margin-top: 3rem; padding: 1.5rem 2rem;
+      border-top: 1px solid var(--gray-mid);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--gray-dark);
+      background: var(--white);
+    }
+    .footer-brand { font-weight: 700; color: var(--red); }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      display: flex; gap: 0; border-bottom: 2px solid var(--gray-mid);
+      margin-bottom: 1.5rem;
+    }
+    .tab-btn {
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 13px; font-weight: 700;
+      padding: 10px 20px; border: none; background: none;
+      cursor: pointer; color: var(--gray-dark);
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { color: var(--red); border-bottom-color: var(--red); }
+    .tab-btn:hover:not(.active) { color: var(--black); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-left">
+    <div class="header-logo">IMA</div>
+    <div>
+      <div class="header-title"><span>Asana</span> Reports</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="last-sync" id="last-sync">Loading...</span>
+    <button class="btn btn-outline" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="controls-left">
+      <span class="filter-label">Department:</span>
+      <button class="filter-btn active" data-dept="all" onclick="filterDept('all')">All</button>
+      <button class="filter-btn" data-dept="ems" onclick="filterDept('ems')">EMS</button>
+      <button class="filter-btn" data-dept="healthcare" onclick="filterDept('healthcare')">Healthcare</button>
+      <button class="filter-btn" data-dept="cpr" onclick="filterDept('cpr')">CPR / AHA</button>
+      <button class="filter-btn" data-dept="admin" onclick="filterDept('admin')">Admin</button>
+      <button class="filter-btn" data-dept="marketing" onclick="filterDept('marketing')">Marketing</button>
+    </div>
+    <div>
+      <select class="period-select" id="period-select" onchange="changePeriod()">
+        <option value="latest">Latest reports</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="summary-strip" id="summary-strip">
+    <div class="summary-card accent">
+      <div class="summary-card-label">Departments</div>
+      <div class="summary-card-value" id="s-depts">—</div>
+      <div class="summary-card-sub">reporting</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">On Track</div>
+      <div class="summary-card-value" id="s-green" style="color:var(--green)">—</div>
+      <div class="summary-card-sub">green status</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Achieved</div>
+      <div class="summary-card-value" id="s-achieved" style="color:var(--blue)">—</div>
+      <div class="summary-card-sub">goals completed</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Needs Attention</div>
+      <div class="summary-card-value" id="s-attn" style="color:var(--red)">—</div>
+      <div class="summary-card-sub">at risk / off track</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('current')">Current Reports</button>
+    <button class="tab-btn" onclick="switchTab('history')">All History</button>
+  </div>
+
+  <!-- Current tab -->
+  <div class="tab-pane active" id="tab-current">
+    <div class="section-header">
+      <div class="section-title">Department Status Reports</div>
+      <div class="period-tag" id="period-tag">Loading...</div>
+    </div>
+    <div class="dept-grid" id="dept-grid">
+      <div class="loading-block" style="grid-column:1/-1">
+        <div class="spinner"></div><br>Loading department reports from Asana...
+      </div>
+    </div>
+  </div>
+
+  <!-- History tab -->
+  <div class="tab-pane" id="tab-history">
+    <div class="history-header">
+      <div class="history-title">All Status Reports</div>
+      <div class="history-count" id="history-count">0</div>
+    </div>
+    <div id="timeline-container">
+      <div class="loading-block">
+        <div class="spinner"></div><br>Loading history...
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div><span class="footer-brand">Idaho Medical Academy</span> — Where Your Journey Begins</div>
+  <div>Live data via Asana API · <span id="footer-sync">—</span></div>
+</footer>
+
+<script>
+const PAT = '2/1202850926470812/1215987514852810:2f2309de7a3ae7c80728d666649efa29';
+const WORKSPACE_GID = '395523510357438';
+
+const DEPT_MAP = {
+  'EMS Division':        { key: 'ems',        icon: '🚑', lead: 'Chris Herman',       goalGid: '1210051596795864' },
+  'Healthcare Division': { key: 'healthcare',  icon: '🏥', lead: 'Samantha Rezendes',  goalGid: '1213901724431940' },
+  '2026 CPR/AHA Goals':  { key: 'cpr',         icon: '❤️', lead: 'Kate',               goalGid: '1213882224965688' },
+  'Admin Division':      { key: 'admin',       icon: '🏢', lead: 'Cameron Daly',       goalGid: '1210051596795862' },
+  'Marketing':           { key: 'marketing',   icon: '📣', lead: 'Sabrina Campbell',   goalGid: '1210979562966572' },
+};
+
+const GOAL_GIDS = Object.values(DEPT_MAP).map(d => d.goalGid);
+
+let allReports = [];
+let currentDeptFilter = 'all';
+let currentCards = [];
+
+async function asana(path) {
+  const res = await fetch(`https://app.asana.com/api/1.0${path}`, {
+    headers: { 'Authorization': `Bearer ${PAT}`, 'Accept': 'application/json' }
+  });
+  if (!res.ok) throw new Error(`Asana API error ${res.status}: ${path}`);
+  const json = await res.json();
+  return json.data;
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+function extractSection(text, heading) {
+  const lines = text.split('\n');
+  let capturing = false;
+  const result = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === '---' || trimmed.match(/^-{3,}$/)) { capturing = false; continue; }
+    if (trimmed.toLowerCase().includes(heading.toLowerCase())) { capturing = true; continue; }
+    if (capturing) {
+      if (trimmed.toLowerCase().match(/^(what we|summary|blocked|next steps|key accomplishments|what's blocked)/i) && !trimmed.toLowerCase().includes(heading.toLowerCase())) {
+        capturing = false;
+      } else if (trimmed) {
+        result.push(trimmed);
+      }
+    }
+  }
+  return result.slice(0, 5);
+}
+
+function parseBullets(text) {
+  return text.split('\n')
+    .map(l => l.replace(/^[\s•\-*]+/, '').trim())
+    .filter(l => l.length > 20 && !l.match(/^https?:\/\//));
+}
+
+async function fetchGoalStatuses(goalGid) {
+  try {
+    const statuses = await asana(`/goals/${goalGid}/goalRelationships?opt_fields=contribution_weight,resource_subtype,supporting_resource`);
+    return [];
+  } catch { return []; }
+}
+
+async function fetchAllStatusUpdates(goalGid) {
+  try {
+    const updates = await asana(`/status_updates?parent=${goalGid}&opt_fields=title,text,html_text,color,created_at,created_by&limit=50`);
+    return Array.isArray(updates) ? updates : [];
+  } catch { return []; }
+}
+
+async function fetchGoalDetails(goalGid) {
+  try {
+    const goal = await asana(`/goals/${goalGid}?opt_fields=name,status,current_status_update,metric,owner,time_period,notes`);
+    return goal;
+  } catch { return null; }
+}
+
+async function fetchStatusUpdate(gid) {
+  try {
+    const s = await asana(`/status_updates/${gid}?opt_fields=title,text,html_text,color,created_at,created_by`);
+    return s;
+  } catch { return null; }
+}
+
+function statusPill(color) {
+  const map = {
+    green:    ['pill-green',    'On Track'],
+    yellow:   ['pill-yellow',   'At Risk'],
+    red:      ['pill-red',      'Off Track'],
+    achieved: ['pill-achieved', 'Achieved'],
+    blue:     ['pill-achieved', 'On Hold'],
+  };
+  const [cls, label] = map[color] || ['pill-gray', 'No Status'];
+  return `<span class="status-pill ${cls}"><span class="status-dot"></span>${label}</span>`;
+}
+
+function progressColor(color) {
+  if (color === 'green') return 'fill-green';
+  if (color === 'yellow') return 'fill-yellow';
+  if (color === 'red') return 'fill-red';
+  return 'fill-green';
+}
+
+function buildDeptCard(dept, statusUpdate, goal, idx) {
+  const rawText = statusUpdate ? (stripHtml(statusUpdate.html_text) || statusUpdate.text || '') : '';
+  const title = statusUpdate?.title || goal?.name || dept.name;
+  const color = statusUpdate?.color || goal?.status || 'green';
+  const date = statusUpdate ? new Date(statusUpdate.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
+
+  const winsRaw = extractSection(rawText, "accomplished");
+  const winsRaw2 = extractSection(rawText, "key accomplishments");
+  const wins = [...winsRaw, ...winsRaw2].filter(Boolean).slice(0, 4);
+
+  const blockers = extractSection(rawText, "blocked");
+
+  const nextSteps = extractSection(rawText, "next steps").join(' ');
+
+  const summaryLines = rawText.split('\n').filter(l => {
+    const t = l.trim();
+    return t.length > 60 && !t.startsWith('http') && !t.match(/^[-=]{3,}/);
+  });
+  const summary = summaryLines.slice(0, 2).join(' ').substring(0, 300) + (summaryLines.join(' ').length > 300 ? '...' : '');
+
+  const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
+
+  const winItems = wins.length
+    ? wins.map(w => `<li><span class="win-icon">✓</span><span>${w.substring(0, 120)}</span></li>`).join('')
+    : `<li><span class="win-icon">✓</span><span>No wins listed in this report</span></li>`;
+
+  const blockItems = blockers.length
+    ? blockers.map(b => `<li><span class="block-icon">⚠</span><span>${b.substring(0, 120)}</span></li>`).join('')
+    : `<li style="color:var(--gray-dark);font-size:13px;">No blockers reported</li>`;
+
+  return `
+<div class="dept-card" data-dept="${dept.key}">
+  <div class="dept-card-top">
+    <div class="dept-info">
+      <div class="dept-icon-badge">${dept.icon}</div>
+      <div>
+        <div class="dept-name">${dept.name}</div>
+        <div class="dept-lead">Lead: ${dept.lead}</div>
+      </div>
+    </div>
+    ${statusPill(color)}
+  </div>
+  <div class="dept-card-body">
+    <div class="progress-section">
+      <div class="progress-row">
+        <span class="progress-row-label">Goal progress</span>
+        <span class="progress-row-pct">${pct}%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pct}%"></div></div>
+    </div>
+    ${summary ? `<p class="summary-text">${summary}</p>` : ''}
+    <hr class="divider" />
+    <div class="wins-label">Key Wins</div>
+    <ul class="wins-list">${winItems}</ul>
+    <button class="expand-toggle" onclick="toggleCard(${idx})">
+      <span id="expand-lbl-${idx}">▸ View milestones & blockers</span>
+    </button>
+    <div class="expanded-section" id="expanded-${idx}">
+      <hr class="divider" />
+      <div class="blockers-label">Blockers</div>
+      <ul class="blockers-list">${blockItems}</ul>
+      ${nextSteps ? `<div class="next-steps-box"><div class="next-steps-title">Next Steps</div>${nextSteps.substring(0, 300)}</div>` : ''}
+    </div>
+  </div>
+  <div class="card-footer">
+    <span class="card-footer-date">📅 ${date}</span>
+    <a href="https://app.asana.com/0/goal/${goal?.gid || dept.goalGid}" target="_blank" class="btn btn-outline" style="font-size:11px;padding:4px 10px;">View in Asana ↗</a>
+  </div>
+</div>`;
+}
+
+function buildTimelineItem(report) {
+  const dotClass = { green: 'dot-g', yellow: 'dot-y', red: 'dot-r', blue: 'dot-b' }[report.color] || 'dot-g';
+  const rawText = stripHtml(report.html_text) || report.text || '';
+  const preview = rawText.split('\n').filter(l => l.trim().length > 50 && !l.trim().startsWith('http')).slice(0, 2).join(' ').substring(0, 250);
+
+  return `
+<div class="timeline-item" data-dept="${report.deptKey}">
+  <div class="timeline-dot ${dotClass}"></div>
+  <div class="timeline-card">
+    <div class="timeline-card-header">
+      <div class="timeline-card-title">${report.title || 'Status Update'}</div>
+      <div class="timeline-card-dept">${report.deptName}</div>
+    </div>
+    ${preview ? `<div class="timeline-card-text">${preview}...</div>` : ''}
+    <div class="timeline-card-date">
+      ${statusPill(report.color)}
+      &nbsp; ${new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+    </div>
+  </div>
+</div>`;
+}
+
+function toggleCard(idx) {
+  const el = document.getElementById('expanded-' + idx);
+  const lbl = document.getElementById('expand-lbl-' + idx);
+  el.classList.toggle('open');
+  lbl.textContent = el.classList.contains('open') ? '▾ Hide milestones & blockers' : '▸ View milestones & blockers';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && tab === 'current') || (i === 1 && tab === 'history'));
+  });
+  document.getElementById('tab-current').classList.toggle('active', tab === 'current');
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+}
+
+function filterDept(key) {
+  currentDeptFilter = key;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.dept === key));
+  document.querySelectorAll('.dept-card').forEach(card => {
+    card.style.display = (key === 'all' || card.dataset.dept === key) ? '' : 'none';
+  });
+  document.querySelectorAll('.timeline-item').forEach(item => {
+    item.style.display = (key === 'all' || item.dataset.dept === key) ? '' : 'none';
+  });
+}
+
+async function loadAll() {
+  document.getElementById('last-sync').textContent = 'Loading...';
+  document.getElementById('dept-grid').innerHTML = '<div class="loading-block" style="grid-column:1/-1"><div class="spinner"></div><br>Fetching from Asana...</div>';
+  document.getElementById('timeline-container').innerHTML = '<div class="loading-block"><div class="spinner"></div><br>Loading history...</div>';
+
+  try {
+    const deptEntries = Object.entries(DEPT_MAP);
+    const cardData = [];
+    allReports = [];
+
+    await Promise.all(deptEntries.map(async ([name, dept]) => {
+      const [goal, updates] = await Promise.all([
+        fetchGoalDetails(dept.goalGid),
+        fetchAllStatusUpdates(dept.goalGid),
+      ]);
+
+      let latestStatus = null;
+      if (goal?.current_status_update?.gid) {
+        latestStatus = await fetchStatusUpdate(goal.current_status_update.gid);
+      } else if (updates.length > 0) {
+        latestStatus = await fetchStatusUpdate(updates[0].gid);
+      }
+
+      cardData.push({ name, dept, goal, latestStatus });
+
+      const allUpdates = updates.length > 0
+        ? await Promise.all(updates.map(u => fetchStatusUpdate(u.gid)))
+        : latestStatus ? [latestStatus] : [];
+
+      allUpdates.filter(Boolean).forEach(u => {
+        allReports.push({
+          ...u,
+          deptName: name,
+          deptKey: dept.key,
+        });
+      });
+    }));
+
+    allReports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const greenCount = cardData.filter(d => (d.latestStatus?.color || d.goal?.status) === 'green').length;
+    const achievedCount = cardData.filter(d => (d.latestStatus?.color || d.goal?.status) === 'achieved').length;
+    const attnCount = cardData.filter(d => ['yellow','red'].includes(d.latestStatus?.color || d.goal?.status)).length;
+
+    document.getElementById('s-depts').textContent = cardData.length;
+    document.getElementById('s-green').textContent = greenCount;
+    document.getElementById('s-achieved').textContent = achievedCount;
+    document.getElementById('s-attn').textContent = attnCount;
+
+    const now = new Date();
+    const syncStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' at ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    document.getElementById('last-sync').textContent = 'Synced ' + syncStr;
+    document.getElementById('footer-sync').textContent = syncStr;
+
+    const latestDate = allReports[0]
+      ? new Date(allReports[0].created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : 'Current period';
+    document.getElementById('period-tag').textContent = latestDate;
+
+    const grid = document.getElementById('dept-grid');
+    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.dept, d.latestStatus, d.goal, i)).join('');
+
+    document.getElementById('history-count').textContent = allReports.length;
+    const timeline = document.getElementById('timeline-container');
+    if (allReports.length === 0) {
+      timeline.innerHTML = '<div class="loading-block">No historical reports found.</div>';
+    } else {
+      timeline.innerHTML = `<div class="timeline">${allReports.map(r => buildTimelineItem(r)).join('')}</div>`;
+    }
+
+    const periodSelect = document.getElementById('period-select');
+    const months = [...new Set(allReports.map(r => {
+      const d = new Date(r.created_at);
+      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }))];
+    periodSelect.innerHTML = '<option value="latest">Latest reports</option>' +
+      months.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    if (currentDeptFilter !== 'all') filterDept(currentDeptFilter);
+
+  } catch (err) {
+    const errHtml = `<div class="error-block">⚠ Failed to load Asana data: ${err.message}<br><small>Check your token in config.js or try refreshing.</small></div>`;
+    document.getElementById('dept-grid').innerHTML = errHtml;
+    document.getElementById('timeline-container').innerHTML = errHtml;
+    document.getElementById('last-sync').textContent = 'Failed to sync';
+  }
+}
+
+function changePeriod() {
+  const val = document.getElementById('period-select').value;
+  document.querySelectorAll('.timeline-item').forEach(item => {
+    if (val === 'latest') { item.style.display = ''; return; }
+    const d = new Date(item.querySelector('.timeline-card-date')?.textContent || '');
+    const itemMonth = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    item.style.display = itemMonth === val ? '' : 'none';
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
