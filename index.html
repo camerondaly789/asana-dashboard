@@ -333,7 +333,7 @@
       padding: 2px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
     }
     .timeline-card-text { font-size: 12px; color: var(--gray-dark); line-height: 1.6; }
-    .timeline-card-date { font-size: 11px; color: var(--gray-dark); margin-top: 8px; }
+    .timeline-card-date { font-size: 11px; color: var(--gray-dark); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
 
     /* ── Empty / loading states ── */
     .loading-block {
@@ -365,6 +365,44 @@
       background: var(--white);
     }
     .footer-brand { font-weight: 700; color: var(--red); }
+
+    /* ── Report detail modal ── */
+    .report-modal-box {
+      background: white; border-radius: 8px;
+      width: 100%; max-width: 720px; max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+    }
+    .report-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 24px 14px; border-bottom: 2px solid var(--red);
+      flex-shrink: 0;
+    }
+    .report-modal-header-title { font-size: 15px; font-weight: 700; }
+    .report-modal-header-sub { font-size: 12px; color: var(--gray-dark); margin-top: 2px; }
+    .report-modal-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 20px; color: var(--gray-dark); padding: 4px 8px;
+      border-radius: 4px; line-height: 1;
+    }
+    .report-modal-close:hover { color: var(--red); }
+    .report-modal-body {
+      overflow-y: auto; padding: 0;
+      flex: 1;
+    }
+    .report-modal-body .dept-card {
+      border-radius: 0; border: none; box-shadow: none;
+      margin: 0;
+    }
+    .report-modal-body .dept-card-top {
+      border-radius: 0;
+    }
+    .timeline-item { cursor: pointer; }
+    .timeline-card { transition: box-shadow 0.15s, transform 0.12s; }
+    .timeline-item:hover .timeline-card {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+      transform: translateY(-1px);
+    }
 
     /* ── Tab nav ── */
     .tab-nav {
@@ -410,6 +448,21 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveGroqKey()">Save & Reload</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="report-modal" onclick="closeReport(event)">
+  <div class="report-modal-box" onclick="event.stopPropagation()">
+    <div class="report-modal-header">
+      <div>
+        <div class="report-modal-header-title" id="report-modal-title"></div>
+        <div class="report-modal-header-sub" id="report-modal-sub"></div>
+      </div>
+      <button class="report-modal-close" onclick="closeReport()">✕</button>
+    </div>
+    <div class="report-modal-body" id="report-modal-body">
+      <div class="loading-block"><div class="spinner"></div><br>Loading report...</div>
     </div>
   </div>
 </div>
@@ -841,8 +894,9 @@ function buildTimelineItem(report) {
   const rawText = stripHtml(report.html_text) || report.text || '';
   const preview = rawText.split('\n').filter(l => l.trim().length > 50 && !l.trim().startsWith('http')).slice(0, 2).join(' ').substring(0, 250);
 
+  const dateStr = new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   return `
-<div class="timeline-item" data-dept="${report.deptKey}">
+<div class="timeline-item" data-dept="${report.deptKey}" onclick="openReport('${report.gid}')" title="Click to view full report">
   <div class="timeline-dot ${dotClass}"></div>
   <div class="timeline-card">
     <div class="timeline-card-header">
@@ -852,10 +906,38 @@ function buildTimelineItem(report) {
     ${preview ? `<div class="timeline-card-text">${preview}...</div>` : ''}
     <div class="timeline-card-date">
       ${statusPill(report.color)}
-      &nbsp; ${new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+      &nbsp; ${dateStr}
+      <span style="margin-left:auto;font-size:11px;color:var(--red);font-weight:700;">View full report ▸</span>
     </div>
   </div>
 </div>`;
+}
+
+async function openReport(gid) {
+  const report = allReports.find(r => r.gid === gid);
+  if (!report) return;
+  const dept = DEPT_MAP[report.deptName];
+  if (!dept) return;
+
+  const dateStr = new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  document.getElementById('report-modal-title').textContent = report.deptName;
+  document.getElementById('report-modal-sub').textContent = dateStr;
+  document.getElementById('report-modal-body').innerHTML =
+    '<div class="loading-block" style="padding:2rem;"><div class="spinner"></div><br>Generating AI summary...</div>';
+  document.getElementById('report-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  const rawText = stripHtml(report.html_text) || report.text || '';
+  const aiSummary = await generateAISummary(rawText, report.gid);
+  const fakeGoal = { gid: dept.goalGid };
+  const cardHtml = buildDeptCard(report.deptName, dept, report, fakeGoal, 'modal', aiSummary);
+  document.getElementById('report-modal-body').innerHTML = cardHtml;
+}
+
+function closeReport(e) {
+  if (e && e.currentTarget !== e.target) return;
+  document.getElementById('report-modal').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function toggleCard(idx) {
