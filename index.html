@@ -570,6 +570,7 @@ let allReports = [];
 let currentDeptFilter = 'all';
 let currentPeriodFilter = 'latest';
 let currentCards = [];
+let latestCardData = [];
 
 async function asana(path) {
   const res = await fetch(`https://app.asana.com/api/1.0${path}`, {
@@ -1078,6 +1079,8 @@ async function loadAll() {
       : 'Current period';
     document.getElementById('period-tag').textContent = latestDate;
 
+    latestCardData = validCards;
+
     const aiSummaries = await Promise.all(validCards.map(d => {
       if (!d.latestStatus) return Promise.resolve('');
       const text = stripHtml(d.latestStatus.html_text) || d.latestStatus.text || '';
@@ -1135,9 +1138,45 @@ async function loadAll() {
   }
 }
 
-function changePeriod() {
+async function changePeriod() {
   currentPeriodFilter = document.getElementById('period-select').value;
   applyFilters();
+
+  const grid = document.getElementById('dept-grid');
+  const periodTag = document.getElementById('period-tag');
+
+  if (currentPeriodFilter === 'latest') {
+    // Restore latest cards
+    periodTag.textContent = allReports[0]
+      ? new Date(allReports[0].created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : 'Current period';
+    const aiSummaries = await Promise.all(latestCardData.map(d => {
+      if (!d.latestStatus) return Promise.resolve('');
+      return generateAISummary(stripHtml(d.latestStatus.html_text) || d.latestStatus.text || '', d.latestStatus.gid);
+    }));
+    grid.innerHTML = latestCardData.map((d, i) =>
+      buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i, aiSummaries[i])
+    ).join('');
+  } else {
+    // Rebuild cards for the selected month
+    periodTag.textContent = currentPeriodFilter;
+    grid.innerHTML = '<div class="loading-block" style="grid-column:1/-1"><div class="spinner"></div><br>Loading ' + currentPeriodFilter + ' reports...</div>';
+    const monthCardData = Object.entries(DEPT_MAP).map(([name, dept]) => {
+      const report = allReports.find(r => {
+        const m = new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        return r.deptName === name && m === currentPeriodFilter;
+      });
+      const match = latestCardData.find(d => d.name === name);
+      return { name, dept, goal: match?.goal || null, latestStatus: report || null };
+    });
+    const aiSummaries = await Promise.all(monthCardData.map(d => {
+      if (!d.latestStatus) return Promise.resolve('');
+      return generateAISummary(stripHtml(d.latestStatus.html_text) || d.latestStatus.text || '', d.latestStatus.gid);
+    }));
+    grid.innerHTML = monthCardData.map((d, i) =>
+      buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i, aiSummaries[i])
+    ).join('');
+  }
 }
 
 loadAll();
