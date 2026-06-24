@@ -503,8 +503,19 @@ async function fetchGoalStatuses(goalGid) {
 
 async function fetchAllStatusUpdates(goalGid) {
   try {
-    const updates = await asana(`/status_updates?parent=${goalGid}&opt_fields=title,text,html_text,color,created_at,created_by&limit=50`);
-    return Array.isArray(updates) ? updates : [];
+    let all = [];
+    let offset = null;
+    do {
+      const url = `/status_updates?parent=${goalGid}&opt_fields=gid,created_at&limit=100${offset ? '&offset=' + encodeURIComponent(offset) : ''}`;
+      const res = await fetch(`https://app.asana.com/api/1.0${url}`, {
+        headers: { 'Authorization': `Bearer ${PAT}`, 'Accept': 'application/json' }
+      });
+      if (!res.ok) break;
+      const json = await res.json();
+      if (Array.isArray(json.data)) all = all.concat(json.data);
+      offset = json.next_page?.offset ?? null;
+    } while (offset);
+    return all;
   } catch { return []; }
 }
 
