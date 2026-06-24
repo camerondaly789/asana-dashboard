@@ -200,6 +200,7 @@
     .inprogress-label { color: #7a5c00; }
     .completed-icon { color: var(--blue); font-size: 13px; flex-shrink: 0; margin-top: 1px; }
     .inprogress-icon { color: #c47f00; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .task-mention { text-decoration: underline; color: var(--blue); font-weight: 600; }
 
     .wins-list, .blockers-list { list-style: none; margin-bottom: 10px; }
     .wins-list li, .blockers-list li {
@@ -556,6 +557,52 @@ function progressColor(color) {
   return 'fill-green';
 }
 
+function extractAsanaLinks(htmlText) {
+  if (!htmlText) return { completed: [], inProgress: [], other: [] };
+  const tmp = document.createElement('div');
+  tmp.innerHTML = htmlText;
+  const completedKw = /complet|finish|delivered|launched|shipped|achieved|done|wrapped|released/i;
+  const inProgressKw = /working on|in progress|currently|underway|ongoing|building|developing|preparing|started|continuing/i;
+  const completed = [], inProgress = [], other = [];
+  tmp.querySelectorAll('a').forEach(link => {
+    const name = link.textContent.trim();
+    if (!name || name.length < 3 || name.startsWith('http')) return;
+    let block = link.parentElement;
+    while (block && !['P','LI','DIV'].includes(block.tagName)) block = block.parentElement;
+    const blockText = block ? block.textContent : '';
+    const pos = blockText.indexOf(name);
+    const context = blockText.substring(Math.max(0, pos - 120), pos + name.length + 60);
+    if (completedKw.test(context)) completed.push(name);
+    else if (inProgressKw.test(context)) inProgress.push(name);
+    else other.push(name);
+  });
+  return { completed, inProgress, other };
+}
+
+function renderSummaryHtml(htmlText) {
+  if (!htmlText) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = htmlText;
+  tmp.querySelectorAll('a').forEach(link => {
+    const span = document.createElement('span');
+    span.className = 'task-mention';
+    span.textContent = link.textContent;
+    link.replaceWith(span);
+  });
+  function walk(node) {
+    if (node.nodeType === 3) return node.textContent;
+    if (node.nodeType === 1) {
+      if (node.tagName === 'SPAN' && node.className === 'task-mention') {
+        return `<span class="task-mention">${node.textContent}</span>`;
+      }
+      const inner = Array.from(node.childNodes).map(walk).join('');
+      return ['P','LI','DIV','BR'].includes(node.tagName) ? inner + ' ' : inner;
+    }
+    return '';
+  }
+  return walk(tmp).replace(/\s+/g, ' ').trim();
+}
+
 function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   const rawText = statusUpdate ? (stripHtml(statusUpdate.html_text) || statusUpdate.text || '') : '';
   const color = statusUpdate?.color || goal?.status || 'green';
@@ -568,30 +615,27 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   const blockers = extractSection(rawText, "blocked");
   const nextSteps = extractSection(rawText, "next steps").join(' ');
 
-  const completedRaw = [
+  const links = extractAsanaLinks(statusUpdate?.html_text);
+  const completedFallback = [...new Set([
     ...extractSection(rawText, "completed"),
     ...extractSection(rawText, "milestones completed"),
     ...extractSection(rawText, "projects completed"),
     ...extractSection(rawText, "delivered"),
-  ].filter(Boolean);
-  const completed = [...new Set(completedRaw)].slice(0, 5);
+  ])].filter(Boolean);
+  const completed = [...new Set([...links.completed, ...(links.completed.length ? [] : completedFallback)])].slice(0, 6);
 
-  const inProgressRaw = [
+  const inProgressFallback = [...new Set([
     ...extractSection(rawText, "in progress"),
     ...extractSection(rawText, "current projects"),
     ...extractSection(rawText, "currently working"),
     ...extractSection(rawText, "underway"),
-    ...extractSection(rawText, "working on"),
-  ].filter(Boolean);
-  const inProgress = [...new Set(inProgressRaw)].slice(0, 5);
+  ])].filter(Boolean);
+  const inProgress = [...new Set([...links.inProgress, ...(links.inProgress.length ? [] : inProgressFallback)])].slice(0, 6);
 
-  const summaryLines = rawText.split('\n').filter(l => {
-    const t = l.trim();
-    return t.length > 60 && !t.startsWith('http') && !t.match(/^[-=]{3,}/);
-  });
-  const fullSummary = summaryLines.join(' ');
-  const shortSummary = fullSummary.substring(0, 160);
-  const hasMoreSummary = fullSummary.length > 160;
+  const fullSummaryHtml = renderSummaryHtml(statusUpdate?.html_text);
+  const fullSummaryText = fullSummaryHtml.replace(/<[^>]+>/g, '');
+  const shortSummaryHtml = fullSummaryHtml.substring(0, 200);
+  const hasMoreSummary = fullSummaryText.length > 200;
 
   const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
 
@@ -631,8 +675,8 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
       </div>
       <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pct}%"></div></div>
     </div>
-    ${shortSummary ? `
-    <p class="summary-text">${shortSummary}${hasMoreSummary ? `<span id="summary-more-${idx}" style="display:none">${fullSummary.substring(160)}</span><span id="summary-ellipsis-${idx}">...</span>` : ''}</p>
+    ${shortSummaryHtml ? `
+    <p class="summary-text">${shortSummaryHtml}${hasMoreSummary ? `<span id="summary-more-${idx}" style="display:none">${fullSummaryHtml.substring(200)}</span><span id="summary-ellipsis-${idx}">...</span>` : ''}</p>
     ${hasMoreSummary ? `<button class="expand-toggle" onclick="toggleSummary(${idx})" style="margin-bottom:8px"><span id="summary-lbl-${idx}">▸ Read full summary</span></button>` : ''}
     ` : ''}
     <hr class="divider" />
