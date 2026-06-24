@@ -1015,10 +1015,10 @@ async function loadAll() {
 
   try {
     const deptEntries = Object.entries(DEPT_MAP);
-    const cardData = [];
+    const cardData = new Array(deptEntries.length).fill(null);
     allReports = [];
 
-    await Promise.all(deptEntries.map(async ([name, dept]) => {
+    await Promise.all(deptEntries.map(async ([name, dept], i) => {
       const [goal, updates] = await Promise.all([
         fetchGoalDetails(dept.goalGid),
         fetchAllStatusUpdates(dept.goalGid),
@@ -1031,7 +1031,7 @@ async function loadAll() {
         latestStatus = await fetchStatusUpdate(updates[0].gid);
       }
 
-      cardData.push({ name, dept, goal, latestStatus });
+      cardData[i] = { name, dept, goal, latestStatus };
 
       const allUpdates = updates.length > 0
         ? await Promise.all(updates.map(u => fetchStatusUpdate(u.gid)))
@@ -1048,11 +1048,12 @@ async function loadAll() {
 
     allReports.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const greenCount = cardData.filter(d => (d.latestStatus?.color || d.goal?.status) === 'green').length;
-    const achievedCount = cardData.filter(d => (d.latestStatus?.color || d.goal?.status) === 'achieved').length;
-    const attnCount = cardData.filter(d => ['yellow','red'].includes(d.latestStatus?.color || d.goal?.status)).length;
+    const validCards = cardData.filter(Boolean);
+    const greenCount = validCards.filter(d => (d.latestStatus?.color || d.goal?.status) === 'green').length;
+    const achievedCount = validCards.filter(d => (d.latestStatus?.color || d.goal?.status) === 'achieved').length;
+    const attnCount = validCards.filter(d => ['yellow','red'].includes(d.latestStatus?.color || d.goal?.status)).length;
 
-    document.getElementById('s-depts').textContent = cardData.length;
+    document.getElementById('s-depts').textContent = validCards.length;
     document.getElementById('s-green').textContent = greenCount;
     document.getElementById('s-achieved').textContent = achievedCount;
     document.getElementById('s-attn').textContent = attnCount;
@@ -1067,14 +1068,14 @@ async function loadAll() {
       : 'Current period';
     document.getElementById('period-tag').textContent = latestDate;
 
-    const aiSummaries = await Promise.all(cardData.map(d => {
+    const aiSummaries = await Promise.all(validCards.map(d => {
       if (!d.latestStatus) return Promise.resolve('');
       const text = stripHtml(d.latestStatus.html_text) || d.latestStatus.text || '';
       return generateAISummary(text, d.latestStatus.gid);
     }));
 
     const grid = document.getElementById('dept-grid');
-    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i, aiSummaries[i])).join('');
+    grid.innerHTML = validCards.map((d, i) => buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i, aiSummaries[i])).join('');
 
     document.getElementById('history-count').textContent = allReports.length;
     const timeline = document.getElementById('timeline-container');
