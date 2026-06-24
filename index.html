@@ -56,6 +56,32 @@
     .header-title { font-size: 18px; font-weight: 700; color: var(--black); }
     .header-title span { color: var(--red); }
     .header-right { display: flex; align-items: center; gap: 12px; }
+    .settings-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; padding: 4px 6px; border-radius: 4px;
+      color: var(--gray-dark); transition: color 0.15s;
+    }
+    .settings-btn:hover { color: var(--red); }
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 999;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: white; border-radius: 8px; padding: 28px 32px;
+      width: 100%; max-width: 460px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .modal-desc { font-size: 13px; color: var(--gray-dark); margin-bottom: 16px; line-height: 1.5; }
+    .modal-input {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-mid);
+      border-radius: 4px; font-size: 13px; font-family: monospace;
+      margin-bottom: 14px;
+    }
+    .modal-input:focus { outline: none; border-color: var(--red); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-status { font-size: 12px; margin-bottom: 10px; min-height: 16px; }
     .last-sync { font-size: 12px; color: var(--gray-dark); }
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
@@ -371,8 +397,22 @@
   <div class="header-right">
     <span class="last-sync" id="last-sync">Loading...</span>
     <button class="btn btn-outline" onclick="loadAll()">↻ Refresh</button>
+    <button class="settings-btn" onclick="openSettings()" title="AI Settings">⚙</button>
   </div>
 </header>
+
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-box">
+    <div class="modal-title">AI Summary Settings</div>
+    <div class="modal-desc">Enter your <strong>Groq API key</strong> to enable AI-generated summaries on each department card. Get a free key at <strong>console.groq.com</strong> → API Keys. The key is saved only in your browser and never sent to GitHub.</div>
+    <input class="modal-input" id="groq-key-input" type="password" placeholder="gsk_..." autocomplete="off" />
+    <div class="modal-status" id="modal-status"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGroqKey()">Save & Reload</button>
+    </div>
+  </div>
+</div>
 
 <main class="page">
 
@@ -459,7 +499,7 @@
 
 <script>
 const PAT = '2/1202850926470812/1215987514852810:2f2309de7a3ae7c80728d666649efa29';
-const GROQ_KEY = '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';
+let GROQ_KEY = localStorage.getItem('groq_api_key') || '';
 const WORKSPACE_GID = '395523510357438';
 
 const DEPT_MAP = {
@@ -649,6 +689,7 @@ function renderSummaryHtml(htmlText) {
 }
 
 async function generateAISummary(reportText, cacheKey) {
+  GROQ_KEY = localStorage.getItem('groq_api_key') || '';
   if (!GROQ_KEY) return '__NO_KEY__';
   const storageKey = 'ai_sum_' + cacheKey;
   const cached = localStorage.getItem(storageKey);
@@ -715,8 +756,7 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
   const fullReportHtml = renderFullReport(statusUpdate?.html_text);
   const isDebugState = aiSummary.startsWith('__') && aiSummary.endsWith('__');
   const hasSummary = aiSummary.length > 0 && !isDebugState;
-  const debugLabel = {
-    '__NO_KEY__': 'AI Summary: no API key configured',
+  const debugLabel = aiSummary === '__NO_KEY__' ? '' : {
     '__EMPTY__': 'AI Summary: API returned empty response',
     '__EXCEPTION__': 'AI Summary: network error (check console)',
   }[aiSummary] || (isDebugState ? `AI Summary: API error ${aiSummary.replace(/__ERROR_(\d+)__/, '$1')} (check console)` : '');
@@ -845,6 +885,41 @@ function filterDept(key) {
   document.querySelectorAll('.timeline-item').forEach(item => {
     item.style.display = (key === 'all' || item.dataset.dept === key) ? '' : 'none';
   });
+}
+
+function openSettings() {
+  const input = document.getElementById('groq-key-input');
+  const stored = localStorage.getItem('groq_api_key') || '';
+  input.value = stored;
+  document.getElementById('modal-status').textContent = stored ? '✓ Key saved in this browser' : '';
+  document.getElementById('modal-status').style.color = 'var(--green)';
+  document.getElementById('settings-modal').classList.add('open');
+  input.focus();
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function saveGroqKey() {
+  const key = document.getElementById('groq-key-input').value.trim();
+  const status = document.getElementById('modal-status');
+  if (!key) {
+    localStorage.removeItem('groq_api_key');
+    status.textContent = 'Key cleared.';
+    status.style.color = 'var(--gray-dark)';
+    return;
+  }
+  if (!key.startsWith('gsk_')) {
+    status.textContent = '⚠ Key should start with gsk_ — double-check and try again.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+  localStorage.setItem('groq_api_key', key);
+  // Clear any cached AI summaries so they regenerate with new key
+  Object.keys(localStorage).filter(k => k.startsWith('ai_sum_')).forEach(k => localStorage.removeItem(k));
+  closeSettings();
+  loadAll();
 }
 
 async function loadAll() {
