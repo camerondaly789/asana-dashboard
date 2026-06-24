@@ -563,10 +563,18 @@ function extractAsanaLinks(htmlText) {
   tmp.innerHTML = htmlText;
   const completedKw = /complet|finish|delivered|launched|shipped|achieved|done|wrapped|released/i;
   const inProgressKw = /working on|in progress|currently|underway|ongoing|building|developing|preparing|started|continuing/i;
+  // Person name pattern: one or two proper-case words only (e.g. "Kate" or "Cameron Daly")
+  const personName = /^[A-Z][a-z]{1,20}(\s[A-Z][a-z]{1,20})?$/;
   const completed = [], inProgress = [], other = [];
   tmp.querySelectorAll('a').forEach(link => {
     const name = link.textContent.trim();
-    if (!name || name.length < 3 || name.startsWith('http')) return;
+    const href = link.getAttribute('href') || '';
+    if (!name || name.length < 5 || name.startsWith('http')) return;
+    // Asana task/project links have two numeric IDs: /0/{projectId}/{taskId}
+    // User @mention links have only one: /0/{userId} — skip those
+    if (/asana\.com\/0\/\d+$/.test(href)) return;
+    // Skip anything that looks like just a person's name
+    if (personName.test(name)) return;
     let block = link.parentElement;
     while (block && !['P','LI','DIV'].includes(block.tagName)) block = block.parentElement;
     const blockText = block ? block.textContent : '';
