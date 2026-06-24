@@ -459,7 +459,7 @@
 
 <script>
 const PAT = '2/1202850926470812/1215987514852810:2f2309de7a3ae7c80728d666649efa29';
-const GEMINI_KEY = 'AQ.Ab8RN6IAHegch4wxORJ59wEkAljCSgMdwMG2L6PJKm2yNvvctg';
+const GEMINI_KEY = 'AQ.Ab8RN6LehK_5ewE4XhLhX_Wc_02EoC4Xiqet-NNzXPH6P1eSxg';
 const WORKSPACE_GID = '395523510357438';
 
 const DEPT_MAP = {
@@ -655,11 +655,10 @@ async function generateAISummary(reportText, cacheKey) {
   if (cached) return cached;
   try {
     const prompt = `You are summarizing a department status report for a company executive at Idaho Medical Academy. Write exactly one concise paragraph (2-4 sentences) capturing the most important highlights, progress made, and anything notable. Be direct and professional. Do not use bullet points, headers, or markdown formatting.\n\nReport:\n${reportText.substring(0, 3000)}`;
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_KEY
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
