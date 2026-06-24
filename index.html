@@ -552,9 +552,9 @@ function progressColor(color) {
   return 'fill-green';
 }
 
-function buildDeptCard(dept, statusUpdate, goal, idx) {
+function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   const rawText = statusUpdate ? (stripHtml(statusUpdate.html_text) || statusUpdate.text || '') : '';
-  const title = statusUpdate?.title || goal?.name || dept.name;
+  const title = statusUpdate?.title || goal?.name || deptName;
   const color = statusUpdate?.color || goal?.status || 'green';
   const date = statusUpdate ? new Date(statusUpdate.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
 
@@ -588,7 +588,7 @@ function buildDeptCard(dept, statusUpdate, goal, idx) {
     <div class="dept-info">
       <div class="dept-icon-badge">${dept.icon}</div>
       <div>
-        <div class="dept-name">${dept.name}</div>
+        <div class="dept-name">${deptName}</div>
         <div class="dept-lead">Lead: ${dept.lead}</div>
       </div>
     </div>
@@ -731,7 +731,7 @@ async function loadAll() {
     document.getElementById('period-tag').textContent = latestDate;
 
     const grid = document.getElementById('dept-grid');
-    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.dept, d.latestStatus, d.goal, i)).join('');
+    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i)).join('');
 
     document.getElementById('history-count').textContent = allReports.length;
     const timeline = document.getElementById('timeline-container');
