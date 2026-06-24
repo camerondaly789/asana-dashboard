@@ -459,7 +459,7 @@
 
 <script>
 const PAT = '2/1202850926470812/1215987514852810:2f2309de7a3ae7c80728d666649efa29';
-const GEMINI_KEY = 'AQ.Ab8RN6LehK_5ewE4XhLhX_Wc_02EoC4Xiqet-NNzXPH6P1eSxg';
+const GROQ_KEY = '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';
 const WORKSPACE_GID = '395523510357438';
 
 const DEPT_MAP = {
@@ -649,33 +649,36 @@ function renderSummaryHtml(htmlText) {
 }
 
 async function generateAISummary(reportText, cacheKey) {
-  if (!GEMINI_KEY || GEMINI_KEY === 'YOUR_GEMINI_KEY_HERE') return '__NO_KEY__';
+  if (!GROQ_KEY) return '__NO_KEY__';
   const storageKey = 'ai_sum_' + cacheKey;
   const cached = localStorage.getItem(storageKey);
   if (cached) return cached;
   try {
     const prompt = `You are summarizing a department status report for a company executive at Idaho Medical Academy. Write exactly one concise paragraph (2-4 sentences) capturing the most important highlights, progress made, and anything notable. Be direct and professional. Do not use bullet points, headers, or markdown formatting.\n\nReport:\n${reportText.substring(0, 3000)}`;
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_KEY}`
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 180, temperature: 0.3 }
+        model: 'llama3-8b-8192',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 180,
+        temperature: 0.3
       })
     });
     if (!res.ok) {
       const errText = await res.text();
-      console.error('Gemini API error:', res.status, errText);
+      console.error('Groq API error:', res.status, errText);
       return `__ERROR_${res.status}__`;
     }
     const data = await res.json();
-    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    const summary = data.choices?.[0]?.message?.content?.trim() || '';
     if (summary) localStorage.setItem(storageKey, summary);
     return summary || '__EMPTY__';
   } catch(e) {
-    console.error('Gemini fetch exception:', e);
+    console.error('Groq fetch exception:', e);
     return '__EXCEPTION__';
   }
 }
