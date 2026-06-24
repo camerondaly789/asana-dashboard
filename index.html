@@ -50,10 +50,8 @@
     }
     .header-left { display: flex; align-items: center; gap: 14px; }
     .header-logo {
-      width: 44px; height: 44px; border-radius: 50%;
-      background: var(--red);
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-weight: 700; font-size: 15px; letter-spacing: 0.5px;
+      height: 44px; width: auto;
+      display: block; object-fit: contain;
     }
     .header-title { font-size: 18px; font-weight: 700; color: var(--black); }
     .header-title span { color: var(--red); }
@@ -365,7 +363,7 @@
 
 <header class="site-header">
   <div class="header-left">
-    <div class="header-logo">IMA</div>
+    <img class="header-logo" src="ima-logo-sized-rmsk6k27du3eh3blbjbv2gr72u5knlgrzxev5iif1i.webp" alt="Idaho Medical Academy" />
     <div>
       <div class="header-title"><span>Asana</span> Reports</div>
     </div>
