@@ -703,7 +703,7 @@ async function generateAISummary(reportText, cacheKey) {
         'Authorization': `Bearer ${GROQ_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 180,
         temperature: 0.3
@@ -712,7 +712,11 @@ async function generateAISummary(reportText, cacheKey) {
     if (!res.ok) {
       const errText = await res.text();
       console.error('Groq API error:', res.status, errText);
-      return `__ERROR_${res.status}__`;
+      try {
+        const errJson = JSON.parse(errText);
+        const msg = errJson?.error?.message || errText;
+        return `__ERROR_${res.status}: ${msg.substring(0, 120)}__`;
+      } catch { return `__ERROR_${res.status}__`; }
     }
     const data = await res.json();
     const summary = data.choices?.[0]?.message?.content?.trim() || '';
@@ -759,7 +763,7 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
   const debugLabel = aiSummary === '__NO_KEY__' ? '' : {
     '__EMPTY__': 'AI Summary: API returned empty response',
     '__EXCEPTION__': 'AI Summary: network error (check console)',
-  }[aiSummary] || (isDebugState ? `AI Summary: API error ${aiSummary.replace(/__ERROR_(\d+)__/, '$1')} (check console)` : '');
+  }[aiSummary] || (isDebugState ? `AI Summary error: ${aiSummary.replace(/^__|__$/g, '')}` : '');
 
   const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
 
