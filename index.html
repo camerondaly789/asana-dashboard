@@ -190,12 +190,16 @@
       margin-bottom: 10px;
     }
 
-    .wins-label, .blockers-label {
+    .wins-label, .blockers-label, .completed-label, .inprogress-label {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.07em; margin-bottom: 6px;
     }
     .wins-label { color: var(--green); }
     .blockers-label { color: var(--yellow); }
+    .completed-label { color: var(--blue); }
+    .inprogress-label { color: #7a5c00; }
+    .completed-icon { color: var(--blue); font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .inprogress-icon { color: #c47f00; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
 
     .wins-list, .blockers-list { list-style: none; margin-bottom: 10px; }
     .wins-list li, .blockers-list li {
@@ -554,7 +558,6 @@ function progressColor(color) {
 
 function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   const rawText = statusUpdate ? (stripHtml(statusUpdate.html_text) || statusUpdate.text || '') : '';
-  const title = statusUpdate?.title || goal?.name || deptName;
   const color = statusUpdate?.color || goal?.status || 'green';
   const date = statusUpdate ? new Date(statusUpdate.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
 
@@ -563,20 +566,46 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   const wins = [...winsRaw, ...winsRaw2].filter(Boolean).slice(0, 4);
 
   const blockers = extractSection(rawText, "blocked");
-
   const nextSteps = extractSection(rawText, "next steps").join(' ');
+
+  const completedRaw = [
+    ...extractSection(rawText, "completed"),
+    ...extractSection(rawText, "milestones completed"),
+    ...extractSection(rawText, "projects completed"),
+    ...extractSection(rawText, "delivered"),
+  ].filter(Boolean);
+  const completed = [...new Set(completedRaw)].slice(0, 5);
+
+  const inProgressRaw = [
+    ...extractSection(rawText, "in progress"),
+    ...extractSection(rawText, "current projects"),
+    ...extractSection(rawText, "currently working"),
+    ...extractSection(rawText, "underway"),
+    ...extractSection(rawText, "working on"),
+  ].filter(Boolean);
+  const inProgress = [...new Set(inProgressRaw)].slice(0, 5);
 
   const summaryLines = rawText.split('\n').filter(l => {
     const t = l.trim();
     return t.length > 60 && !t.startsWith('http') && !t.match(/^[-=]{3,}/);
   });
-  const summary = summaryLines.slice(0, 2).join(' ').substring(0, 300) + (summaryLines.join(' ').length > 300 ? '...' : '');
+  const fullSummary = summaryLines.join(' ');
+  const shortSummary = fullSummary.substring(0, 160);
+  const hasMoreSummary = fullSummary.length > 160;
 
   const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
 
   const winItems = wins.length
     ? wins.map(w => `<li><span class="win-icon">✓</span><span>${w.substring(0, 120)}</span></li>`).join('')
-    : `<li><span class="win-icon">✓</span><span>No wins listed in this report</span></li>`;
+    : `<li style="color:var(--gray-dark);font-size:13px;">No wins listed in this report</li>`;
+
+  const completedItems = completed.length
+    ? completed.map(c => `<li><span class="completed-icon">◆</span><span>${c.substring(0, 120)}</span></li>`).join('')
+    : `<li style="color:var(--gray-dark);font-size:13px;">No completed items listed</li>`;
+
+  const inProgressItems = inProgress.length
+    ? inProgress.map(p => `<li><span class="inprogress-icon">◈</span><span>${p.substring(0, 120)}</span></li>`).join('')
+    : `<li style="color:var(--gray-dark);font-size:13px;">No in-progress items listed</li>`;
 
   const blockItems = blockers.length
     ? blockers.map(b => `<li><span class="block-icon">⚠</span><span>${b.substring(0, 120)}</span></li>`).join('')
@@ -602,18 +631,27 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
       </div>
       <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pct}%"></div></div>
     </div>
-    ${summary ? `<p class="summary-text">${summary}</p>` : ''}
+    ${shortSummary ? `
+    <p class="summary-text">${shortSummary}${hasMoreSummary ? `<span id="summary-more-${idx}" style="display:none">${fullSummary.substring(160)}</span><span id="summary-ellipsis-${idx}">...</span>` : ''}</p>
+    ${hasMoreSummary ? `<button class="expand-toggle" onclick="toggleSummary(${idx})" style="margin-bottom:8px"><span id="summary-lbl-${idx}">▸ Read full summary</span></button>` : ''}
+    ` : ''}
     <hr class="divider" />
     <div class="wins-label">Key Wins</div>
     <ul class="wins-list">${winItems}</ul>
+    <hr class="divider" />
+    <div class="completed-label">Completed Milestones</div>
+    <ul class="wins-list">${completedItems}</ul>
+    <hr class="divider" />
+    <div class="inprogress-label">In Progress</div>
+    <ul class="wins-list">${inProgressItems}</ul>
     <button class="expand-toggle" onclick="toggleCard(${idx})">
-      <span id="expand-lbl-${idx}">▸ View milestones & blockers</span>
+      <span id="expand-lbl-${idx}">▸ View blockers & next steps</span>
     </button>
     <div class="expanded-section" id="expanded-${idx}">
       <hr class="divider" />
       <div class="blockers-label">Blockers</div>
       <ul class="blockers-list">${blockItems}</ul>
-      ${nextSteps ? `<div class="next-steps-box"><div class="next-steps-title">Next Steps</div>${nextSteps.substring(0, 300)}</div>` : ''}
+      ${nextSteps ? `<div class="next-steps-box"><div class="next-steps-title">Next Steps</div>${nextSteps.substring(0, 400)}</div>` : ''}
     </div>
   </div>
   <div class="card-footer">
@@ -649,7 +687,17 @@ function toggleCard(idx) {
   const el = document.getElementById('expanded-' + idx);
   const lbl = document.getElementById('expand-lbl-' + idx);
   el.classList.toggle('open');
-  lbl.textContent = el.classList.contains('open') ? '▾ Hide milestones & blockers' : '▸ View milestones & blockers';
+  lbl.textContent = el.classList.contains('open') ? '▾ Hide blockers & next steps' : '▸ View blockers & next steps';
+}
+
+function toggleSummary(idx) {
+  const more = document.getElementById('summary-more-' + idx);
+  const ellipsis = document.getElementById('summary-ellipsis-' + idx);
+  const lbl = document.getElementById('summary-lbl-' + idx);
+  const isOpen = more.style.display !== 'none';
+  more.style.display = isOpen ? 'none' : 'inline';
+  if (ellipsis) ellipsis.style.display = isOpen ? 'inline' : 'none';
+  lbl.textContent = isOpen ? '▸ Read full summary' : '▾ Show less';
 }
 
 function switchTab(tab) {
