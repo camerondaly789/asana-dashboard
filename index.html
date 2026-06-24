@@ -895,9 +895,11 @@ function buildTimelineItem(report) {
   const rawText = stripHtml(report.html_text) || report.text || '';
   const preview = rawText.split('\n').filter(l => l.trim().length > 50 && !l.trim().startsWith('http')).slice(0, 2).join(' ').substring(0, 250);
 
-  const dateStr = new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const dateObj = new Date(report.created_at);
+  const dateStr = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const monthStr = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   return `
-<div class="timeline-item" data-dept="${report.deptKey}" onclick="openReport('${report.gid}')" title="Click to view full report">
+<div class="timeline-item" data-dept="${report.deptKey}" data-month="${monthStr}" onclick="openReport('${report.gid}')" title="Click to view full report">
   <div class="timeline-dot ${dotClass}"></div>
   <div class="timeline-card">
     <div class="timeline-card-header">
@@ -1108,9 +1110,7 @@ function changePeriod() {
   const val = document.getElementById('period-select').value;
   document.querySelectorAll('.timeline-item').forEach(item => {
     if (val === 'latest') { item.style.display = ''; return; }
-    const d = new Date(item.querySelector('.timeline-card-date')?.textContent || '');
-    const itemMonth = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    item.style.display = itemMonth === val ? '' : 'none';
+    item.style.display = item.dataset.month === val ? '' : 'none';
   });
 }
 
