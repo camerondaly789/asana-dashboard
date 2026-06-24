@@ -236,6 +236,25 @@
       color: var(--black); margin-top: 8px;
     }
     .next-steps-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-dark); margin-bottom: 4px; }
+    .expand-toggle-red {
+      font-family: 'IBM Plex Serif', serif;
+      font-size: 12px; font-weight: 700; color: white;
+      background: var(--red); border: none; cursor: pointer;
+      padding: 6px 12px; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 5px;
+      margin: 6px 0 10px; transition: opacity 0.15s;
+    }
+    .expand-toggle-red:hover { opacity: 0.85; }
+    .full-report-box {
+      background: #fff8f8; border: 1px solid #f5c1c1;
+      border-radius: 4px; padding: 14px 16px;
+      font-size: 13px; line-height: 1.75; color: var(--black);
+      margin-bottom: 10px;
+    }
+    .full-report-box p { margin-bottom: 8px; }
+    .full-report-box ul, .full-report-box ol { padding-left: 18px; margin-bottom: 8px; }
+    .full-report-box li { margin-bottom: 3px; }
+    .full-report-box strong, .full-report-box b { font-weight: 700; }
 
     .card-footer {
       padding: 10px 16px;
@@ -442,6 +461,7 @@
 
 <script>
 const PAT = '2/1202850926470812/1215987514852810:2f2309de7a3ae7c80728d666649efa29';
+const GEMINI_KEY = 'AQ.Ab8RN6IAHegch4wxORJ59wEkAljCSgMdwMG2L6PJKm2yNvvctg';
 const WORKSPACE_GID = '395523510357438';
 
 const DEPT_MAP = {
@@ -591,6 +611,21 @@ function extractAsanaLinks(htmlText) {
   return { completed, inProgress, other };
 }
 
+function renderFullReport(htmlText) {
+  if (!htmlText) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = htmlText;
+  tmp.querySelectorAll('script, style').forEach(el => el.remove());
+  tmp.querySelectorAll('a').forEach(link => {
+    const span = document.createElement('span');
+    const href = link.getAttribute('href') || '';
+    if (/asana\.com\/0\/\d+\/\d+/.test(href)) span.className = 'task-mention';
+    span.textContent = link.textContent;
+    link.replaceWith(span);
+  });
+  return tmp.innerHTML;
+}
+
 function renderSummaryHtml(htmlText) {
   if (!htmlText) return '';
   const tmp = document.createElement('div');
@@ -615,7 +650,30 @@ function renderSummaryHtml(htmlText) {
   return walk(tmp).replace(/\s+/g, ' ').trim();
 }
 
-function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
+async function generateAISummary(reportText, cacheKey) {
+  if (!GEMINI_KEY || GEMINI_KEY === 'YOUR_GEMINI_KEY_HERE') return '';
+  const storageKey = 'ai_sum_' + cacheKey;
+  const cached = localStorage.getItem(storageKey);
+  if (cached) return cached;
+  try {
+    const prompt = `You are summarizing a department status report for a company executive at Idaho Medical Academy. Write exactly one concise paragraph (2-4 sentences) capturing the most important highlights, progress made, and anything notable. Be direct and professional. Do not use bullet points, headers, or markdown formatting.\n\nReport:\n${reportText.substring(0, 3000)}`;
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 180, temperature: 0.3 }
+      })
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    if (summary) localStorage.setItem(storageKey, summary);
+    return summary;
+  } catch { return ''; }
+}
+
+function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') {
   const rawText = statusUpdate ? (stripHtml(statusUpdate.html_text) || statusUpdate.text || '') : '';
   const color = statusUpdate?.color || goal?.status || 'green';
   const date = statusUpdate ? new Date(statusUpdate.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
@@ -644,10 +702,8 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
   ])].filter(Boolean);
   const inProgress = [...new Set([...links.inProgress, ...(links.inProgress.length ? [] : inProgressFallback)])].slice(0, 6);
 
-  const fullSummaryHtml = renderSummaryHtml(statusUpdate?.html_text);
-  const fullSummaryText = fullSummaryHtml.replace(/<[^>]+>/g, '');
-  const shortSummaryHtml = fullSummaryHtml.substring(0, 200);
-  const hasMoreSummary = fullSummaryText.length > 200;
+  const fullReportHtml = renderFullReport(statusUpdate?.html_text);
+  const hasSummary = aiSummary.length > 0;
 
   const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
 
@@ -687,9 +743,16 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx) {
       </div>
       <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pct}%"></div></div>
     </div>
-    ${shortSummaryHtml ? `
-    <p class="summary-text">${shortSummaryHtml}${hasMoreSummary ? `<span id="summary-more-${idx}" style="display:none">${fullSummaryHtml.substring(200)}</span><span id="summary-ellipsis-${idx}">...</span>` : ''}</p>
-    ${hasMoreSummary ? `<button class="expand-toggle" onclick="toggleSummary(${idx})" style="margin-bottom:8px"><span id="summary-lbl-${idx}">▸ Read full summary</span></button>` : ''}
+    ${hasSummary ? `
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--gray-dark);margin-bottom:4px;">AI Summary</div>
+    <p class="summary-text">${aiSummary}</p>` : ''}
+    ${fullReportHtml ? `
+    <button class="expand-toggle-red" onclick="toggleFullReport(${idx})">
+      <span id="report-lbl-${idx}">▸ View Full Report</span>
+    </button>
+    <div class="expanded-section" id="full-report-${idx}">
+      <div class="full-report-box">${fullReportHtml}</div>
+    </div>
     ` : ''}
     <hr class="divider" />
     <div class="wins-label">Key Wins</div>
@@ -746,14 +809,11 @@ function toggleCard(idx) {
   lbl.textContent = el.classList.contains('open') ? '▾ Hide blockers & next steps' : '▸ View blockers & next steps';
 }
 
-function toggleSummary(idx) {
-  const more = document.getElementById('summary-more-' + idx);
-  const ellipsis = document.getElementById('summary-ellipsis-' + idx);
-  const lbl = document.getElementById('summary-lbl-' + idx);
-  const isOpen = more.style.display !== 'none';
-  more.style.display = isOpen ? 'none' : 'inline';
-  if (ellipsis) ellipsis.style.display = isOpen ? 'inline' : 'none';
-  lbl.textContent = isOpen ? '▸ Read full summary' : '▾ Show less';
+function toggleFullReport(idx) {
+  const el = document.getElementById('full-report-' + idx);
+  const lbl = document.getElementById('report-lbl-' + idx);
+  el.classList.toggle('open');
+  lbl.textContent = el.classList.contains('open') ? '▾ Hide Full Report' : '▸ View Full Report';
 }
 
 function switchTab(tab) {
@@ -834,8 +894,14 @@ async function loadAll() {
       : 'Current period';
     document.getElementById('period-tag').textContent = latestDate;
 
+    const aiSummaries = await Promise.all(cardData.map(d => {
+      if (!d.latestStatus) return Promise.resolve('');
+      const text = stripHtml(d.latestStatus.html_text) || d.latestStatus.text || '';
+      return generateAISummary(text, d.latestStatus.gid);
+    }));
+
     const grid = document.getElementById('dept-grid');
-    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i)).join('');
+    grid.innerHTML = cardData.map((d, i) => buildDeptCard(d.name, d.dept, d.latestStatus, d.goal, i, aiSummaries[i])).join('');
 
     document.getElementById('history-count').textContent = allReports.length;
     const timeline = document.getElementById('timeline-container');
