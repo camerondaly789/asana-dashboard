@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -357,6 +358,31 @@
       font-size: 13px; color: var(--red-status); margin: 1rem 0;
     }
 
+    /* ── Statistics tab ── */
+    .stats-summary-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;
+    }
+    @media (max-width: 700px) { .stats-summary-row { grid-template-columns: repeat(2, 1fr); } }
+    .stats-summary-card {
+      background: var(--white); border: 1px solid var(--gray-mid);
+      border-radius: 8px; padding: 20px 16px; text-align: center;
+    }
+    .stats-summary-value { font-size: 28px; font-weight: 700; color: var(--red); line-height: 1; }
+    .stats-summary-label { font-size: 11px; color: var(--gray-dark); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .stats-summary-sub { font-size: 12px; color: var(--black); font-weight: 700; margin-top: 4px; }
+    .charts-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+    }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-box {
+      background: var(--white); border: 1px solid var(--gray-mid);
+      border-radius: 8px; padding: 22px 20px;
+    }
+    .chart-box-full { grid-column: 1 / -1; }
+    .chart-title { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+    .chart-sub { font-size: 12px; color: var(--gray-dark); margin-bottom: 18px; }
+    .chart-wrap { position: relative; height: 260px; }
+
     /* ── Footer ── */
     .site-footer {
       margin-top: 3rem; padding: 1.5rem 2rem;
@@ -516,6 +542,7 @@
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('current')">Current Reports</button>
     <button class="tab-btn" onclick="switchTab('history')">All History</button>
+    <button class="tab-btn" onclick="switchTab('stats')">Statistics</button>
   </div>
 
   <!-- Current tab -->
@@ -542,6 +569,52 @@
         <div class="spinner"></div><br>Loading history...
       </div>
     </div>
+  </div>
+
+  <!-- Statistics tab -->
+  <div class="tab-pane" id="tab-stats">
+
+    <!-- Summary stat cards -->
+    <div class="stats-summary-row">
+      <div class="stats-summary-card">
+        <div class="stats-summary-value" id="stat-total-reports">—</div>
+        <div class="stats-summary-label">Total Reports Submitted</div>
+      </div>
+      <div class="stats-summary-card">
+        <div class="stats-summary-value" id="stat-on-track">—</div>
+        <div class="stats-summary-label">Depts On Track</div>
+      </div>
+      <div class="stats-summary-card">
+        <div class="stats-summary-value" id="stat-top-dept-value">—</div>
+        <div class="stats-summary-label">Most Milestones</div>
+        <div class="stats-summary-sub" id="stat-top-dept-name"></div>
+      </div>
+      <div class="stats-summary-card">
+        <div class="stats-summary-value" id="stat-consistent-value">—</div>
+        <div class="stats-summary-label">Most Consistent</div>
+        <div class="stats-summary-sub" id="stat-consistent-name"></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-box">
+        <div class="chart-title">Report Status History</div>
+        <div class="chart-sub">On Track / Needs Attention / At Risk counts per department</div>
+        <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Milestones &amp; Key Wins</div>
+        <div class="chart-sub">Total completed milestones and key wins by department (all-time)</div>
+        <div class="chart-wrap"><canvas id="chart-milestones"></canvas></div>
+      </div>
+      <div class="chart-box chart-box-full">
+        <div class="chart-title">Reporting Activity Timeline</div>
+        <div class="chart-sub">Monthly report submissions per department — gaps indicate missed reports</div>
+        <div class="chart-wrap"><canvas id="chart-timeline"></canvas></div>
+      </div>
+    </div>
+
   </div>
 
 </main>
@@ -961,10 +1034,15 @@ function toggleFullReport(idx) {
 
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0 && tab === 'current') || (i === 1 && tab === 'history'));
+    b.classList.toggle('active',
+      (i === 0 && tab === 'current') ||
+      (i === 1 && tab === 'history') ||
+      (i === 2 && tab === 'stats'));
   });
   document.getElementById('tab-current').classList.toggle('active', tab === 'current');
   document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('tab-stats').classList.toggle('active', tab === 'stats');
+  if (tab === 'stats') buildStatisticsTab();
 }
 
 function applyFilters() {
@@ -1017,6 +1095,137 @@ function saveGroqKey() {
   Object.keys(localStorage).filter(k => k.startsWith('ai_sum_')).forEach(k => localStorage.removeItem(k));
   closeSettings();
   loadAll();
+}
+
+let _statusChart = null, _milestonesChart = null, _timelineChart = null;
+
+function buildStatisticsTab() {
+  if (!allReports.length) return;
+
+  const depts = Object.keys(DEPT_MAP);
+  const shortName = n => n.replace(' Division','').replace('2026 ','');
+  const deptColors = ['#CA0D0C','#185FA5','#e67e22','#2d7a2d','#7b3fa0'];
+  const monthOrder = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Aggregate stats per department
+  const ds = {};
+  depts.forEach(n => { ds[n] = { reports: 0, milestones: 0, wins: 0, green: 0, yellow: 0, red: 0 }; });
+
+  allReports.forEach(r => {
+    const s = ds[r.deptName]; if (!s) return;
+    s.reports++;
+    const c = r.color || 'green';
+    if (c === 'green' || c === 'achieved') s.green++;
+    else if (c === 'yellow') s.yellow++;
+    else if (c === 'red') s.red++;
+
+    const raw = stripHtml(r.html_text) || r.text || '';
+    const links = extractAsanaLinks(r.html_text);
+    const completedFb = [...new Set([
+      ...extractSection(raw,'completed'), ...extractSection(raw,'milestones completed'), ...extractSection(raw,'delivered')
+    ])];
+    const completed = [...new Set([...links.completed, ...(links.completed.length ? [] : completedFb)])];
+    s.milestones += completed.length;
+
+    const winsAll = [...extractSection(raw,'accomplished'), ...extractSection(raw,'key accomplishments')];
+    s.wins += [...new Set(winsAll)].length;
+  });
+
+  // Summary cards
+  const totalReports = allReports.length;
+  const onTrackCount = Object.values(ds).filter(s => s.green >= s.red && s.green >= s.yellow).length;
+  const topMilestDept = depts.reduce((best, d) => ds[d].milestones > ds[best].milestones ? d : best);
+  const mostConsistDept = depts.reduce((best, d) => ds[d].reports > ds[best].reports ? d : best);
+
+  document.getElementById('stat-total-reports').textContent = totalReports;
+  document.getElementById('stat-on-track').textContent = onTrackCount + ' / ' + depts.length;
+  document.getElementById('stat-top-dept-value').textContent = ds[topMilestDept].milestones;
+  document.getElementById('stat-top-dept-name').textContent = shortName(topMilestDept);
+  document.getElementById('stat-consistent-value').textContent = ds[mostConsistDept].reports;
+  document.getElementById('stat-consistent-name').textContent = shortName(mostConsistDept);
+
+  // Chart 1: Status history stacked bar
+  if (_statusChart) _statusChart.destroy();
+  _statusChart = new Chart(document.getElementById('chart-status'), {
+    type: 'bar',
+    data: {
+      labels: depts.map(shortName),
+      datasets: [
+        { label: 'On Track', data: depts.map(d => ds[d].green), backgroundColor: '#2d7a2d' },
+        { label: 'Needs Attention', data: depts.map(d => ds[d].yellow), backgroundColor: '#e6a817' },
+        { label: 'At Risk', data: depts.map(d => ds[d].red), backgroundColor: '#CA0D0C' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Reports' } }
+      }
+    }
+  });
+
+  // Chart 2: Milestones + wins horizontal bar
+  if (_milestonesChart) _milestonesChart.destroy();
+  _milestonesChart = new Chart(document.getElementById('chart-milestones'), {
+    type: 'bar',
+    data: {
+      labels: depts.map(shortName),
+      datasets: [
+        { label: 'Milestones Completed', data: depts.map(d => ds[d].milestones), backgroundColor: '#CA0D0C' },
+        { label: 'Key Wins', data: depts.map(d => ds[d].wins), backgroundColor: '#185FA5' },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { stepSize: 1 }, title: { display: true, text: 'Count' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Chart 3: Reporting activity timeline (stacked bar per month)
+  const months = [...new Set(allReports.map(r => {
+    const d = new Date(r.created_at);
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  }))].sort((a, b) => new Date(a) - new Date(b));
+
+  if (_timelineChart) _timelineChart.destroy();
+  _timelineChart = new Chart(document.getElementById('chart-timeline'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: depts.map((name, i) => ({
+        label: shortName(name),
+        data: months.map(m => {
+          return allReports.some(r => {
+            const rm = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            return r.deptName === name && rm === m;
+          }) ? 1 : 0;
+        }),
+        backgroundColor: deptColors[i],
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.raw === 1 ? ctx.dataset.label + ': submitted' : ctx.dataset.label + ': no report'
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, max: depts.length, ticks: { stepSize: 1 }, title: { display: true, text: 'Depts Reported' } }
+      }
+    }
+  });
 }
 
 async function loadAll() {
