@@ -713,7 +713,7 @@ async function fetchAllStatusUpdates(goalGid) {
 
 async function fetchGoalDetails(goalGid) {
   try {
-    const goal = await asana(`/goals/${goalGid}?opt_fields=name,status,current_status_update,metric,owner,time_period,notes`);
+    const goal = await asana(`/goals/${goalGid}?opt_fields=name,status,current_status_update,metric,metric.current_number_value,metric.target_number_value,metric.unit,metric.precision,metric.current_display_value,owner,time_period,notes`);
     return goal;
   } catch { return null; }
 }
@@ -894,7 +894,15 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
     '__EXCEPTION__': 'AI Summary: network error (check console)',
   }[aiSummary] || (isDebugState ? `AI Summary error: ${aiSummary.replace(/^__|__$/g, '')}` : '');
 
-  const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
+  const m = goal?.metric;
+  let pct = null;
+  if (m?.unit === 'percentage' && m.current_number_value != null) {
+    pct = Math.min(100, Math.max(0, Math.round(m.current_number_value)));
+  } else if (m?.target_number_value > 0 && m.current_number_value != null) {
+    pct = Math.min(100, Math.max(0, Math.round((m.current_number_value / m.target_number_value) * 100)));
+  }
+  const pctDisplay = pct !== null ? pct : '—';
+  const pctBar = pct !== null ? pct : (color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60);
 
   const winItems = wins.length
     ? wins.map(w => `<li><span class="win-icon">✓</span><span>${w.substring(0, 120)}</span></li>`).join('')
@@ -928,9 +936,9 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
     <div class="progress-section">
       <div class="progress-row">
         <span class="progress-row-label">Goal progress</span>
-        <span class="progress-row-pct">${pct}%</span>
+        <span class="progress-row-pct">${pctDisplay !== '—' ? pctDisplay + '%' : '—'}</span>
       </div>
-      <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pct}%"></div></div>
+      <div class="progress-track"><div class="progress-fill ${progressColor(color)}" style="width:${pctBar}%"></div></div>
     </div>
     ${hasSummary ? `
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--gray-dark);margin-bottom:4px;">AI Summary</div>
