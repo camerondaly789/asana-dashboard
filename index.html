@@ -556,11 +556,11 @@ let GROQ_KEY = localStorage.getItem('groq_api_key') || '';
 const WORKSPACE_GID = '395523510357438';
 
 const DEPT_MAP = {
-  'EMS Division':        { key: 'ems',        icon: '🚑', lead: 'Chris Herman',       goalGid: '1210051596795864' },
-  'Healthcare Division': { key: 'healthcare',  icon: '🏥', lead: 'Samantha Rezendes',  goalGid: '1213901724431940' },
-  '2026 CPR/AHA Goals':  { key: 'cpr',         icon: '❤️', lead: 'Kate',               goalGid: '1213882224965688' },
   'Admin Division':      { key: 'admin',       icon: '🏢', lead: 'Cameron Daly',       goalGid: '1210051596795862' },
   'Marketing':           { key: 'marketing',   icon: '📣', lead: 'Sabrina Campbell',   goalGid: '1210979562966572' },
+  'EMS Division':        { key: 'ems',         icon: '🚑', lead: 'Chris Herman',       goalGid: '1210051596795864' },
+  'Healthcare Division': { key: 'healthcare',  icon: '🏥', lead: 'Samantha Rezendes',  goalGid: '1213901724431940' },
+  '2026 CPR/AHA Goals':  { key: 'cpr',         icon: '❤️', lead: 'Kate',               goalGid: '1213882224965688' },
 };
 
 const GOAL_GIDS = Object.values(DEPT_MAP).map(d => d.goalGid);
