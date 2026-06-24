@@ -657,7 +657,7 @@ async function generateAISummary(reportText, cacheKey) {
   if (cached) return cached;
   try {
     const prompt = `You are summarizing a department status report for a company executive at Idaho Medical Academy. Write exactly one concise paragraph (2-4 sentences) capturing the most important highlights, progress made, and anything notable. Be direct and professional. Do not use bullet points, headers, or markdown formatting.\n\nReport:\n${reportText.substring(0, 3000)}`;
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -665,7 +665,11 @@ async function generateAISummary(reportText, cacheKey) {
         generationConfig: { maxOutputTokens: 180, temperature: 0.3 }
       })
     });
-    if (!res.ok) return '';
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Gemini API error:', res.status, errText);
+      return '';
+    }
     const data = await res.json();
     const summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
     if (summary) localStorage.setItem(storageKey, summary);
@@ -763,15 +767,10 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
     <hr class="divider" />
     <div class="inprogress-label">In Progress</div>
     <ul class="wins-list">${inProgressItems}</ul>
-    <button class="expand-toggle" onclick="toggleCard(${idx})">
-      <span id="expand-lbl-${idx}">▸ View blockers & next steps</span>
-    </button>
-    <div class="expanded-section" id="expanded-${idx}">
-      <hr class="divider" />
-      <div class="blockers-label">Blockers</div>
-      <ul class="blockers-list">${blockItems}</ul>
-      ${nextSteps ? `<div class="next-steps-box"><div class="next-steps-title">Next Steps</div>${nextSteps.substring(0, 400)}</div>` : ''}
-    </div>
+    <hr class="divider" />
+    <div class="blockers-label">Blockers</div>
+    <ul class="blockers-list">${blockItems}</ul>
+    ${nextSteps ? `<div class="next-steps-box"><div class="next-steps-title">Next Steps</div>${nextSteps.substring(0, 400)}</div>` : ''}
   </div>
   <div class="card-footer">
     <span class="card-footer-date">📅 ${date}</span>
