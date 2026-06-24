@@ -568,6 +568,7 @@ const GOAL_GIDS = Object.values(DEPT_MAP).map(d => d.goalGid);
 
 let allReports = [];
 let currentDeptFilter = 'all';
+let currentPeriodFilter = 'latest';
 let currentCards = [];
 
 async function asana(path) {
@@ -965,15 +966,21 @@ function switchTab(tab) {
   document.getElementById('tab-history').classList.toggle('active', tab === 'history');
 }
 
+function applyFilters() {
+  document.querySelectorAll('.dept-card').forEach(card => {
+    card.style.display = (currentDeptFilter === 'all' || card.dataset.dept === currentDeptFilter) ? '' : 'none';
+  });
+  document.querySelectorAll('.timeline-item').forEach(item => {
+    const deptMatch = currentDeptFilter === 'all' || item.dataset.dept === currentDeptFilter;
+    const periodMatch = currentPeriodFilter === 'latest' || item.dataset.month === currentPeriodFilter;
+    item.style.display = (deptMatch && periodMatch) ? '' : 'none';
+  });
+}
+
 function filterDept(key) {
   currentDeptFilter = key;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.dept === key));
-  document.querySelectorAll('.dept-card').forEach(card => {
-    card.style.display = (key === 'all' || card.dataset.dept === key) ? '' : 'none';
-  });
-  document.querySelectorAll('.timeline-item').forEach(item => {
-    item.style.display = (key === 'all' || item.dataset.dept === key) ? '' : 'none';
-  });
+  applyFilters();
 }
 
 function openSettings() {
@@ -1088,15 +1095,37 @@ async function loadAll() {
       timeline.innerHTML = `<div class="timeline">${allReports.map(r => buildTimelineItem(r)).join('')}</div>`;
     }
 
+    // Build hierarchical year > quarter > month dropdown
     const periodSelect = document.getElementById('period-select');
-    const months = [...new Set(allReports.map(r => {
+    const monthOrder = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const grouped = {};
+    allReports.forEach(r => {
       const d = new Date(r.created_at);
-      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    }))];
-    periodSelect.innerHTML = '<option value="latest">Latest reports</option>' +
-      months.map(m => `<option value="${m}">${m}</option>`).join('');
+      const year = d.getFullYear();
+      const monthName = d.toLocaleDateString('en-US', { month: 'long' });
+      const monthNum = d.getMonth(); // 0-11
+      const quarter = 'Q' + Math.ceil((monthNum + 1) / 3);
+      const label = `${monthName} ${year}`;
+      if (!grouped[year]) grouped[year] = {};
+      if (!grouped[year][quarter]) grouped[year][quarter] = new Set();
+      grouped[year][quarter].add(label);
+    });
 
-    if (currentDeptFilter !== 'all') filterDept(currentDeptFilter);
+    let html = '<option value="latest">All reports</option>';
+    Object.keys(grouped).sort((a, b) => b - a).forEach(year => {
+      const quarters = grouped[year];
+      ['Q4','Q3','Q2','Q1'].filter(q => quarters[q]).forEach(q => {
+        html += `<optgroup label="${year} — ${q}">`;
+        const sortedMonths = [...quarters[q]].sort((a, b) =>
+          monthOrder.indexOf(b.split(' ')[0]) - monthOrder.indexOf(a.split(' ')[0])
+        );
+        sortedMonths.forEach(m => { html += `<option value="${m}">${m}</option>`; });
+        html += '</optgroup>';
+      });
+    });
+    periodSelect.innerHTML = html;
+
+    applyFilters();
 
   } catch (err) {
     const errHtml = `<div class="error-block">⚠ Failed to load Asana data: ${err.message}<br><small>Check your token in config.js or try refreshing.</small></div>`;
@@ -1107,11 +1136,8 @@ async function loadAll() {
 }
 
 function changePeriod() {
-  const val = document.getElementById('period-select').value;
-  document.querySelectorAll('.timeline-item').forEach(item => {
-    if (val === 'latest') { item.style.display = ''; return; }
-    item.style.display = item.dataset.month === val ? '' : 'none';
-  });
+  currentPeriodFilter = document.getElementById('period-select').value;
+  applyFilters();
 }
 
 loadAll();
