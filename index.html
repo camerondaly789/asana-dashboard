@@ -649,15 +649,18 @@ function renderSummaryHtml(htmlText) {
 }
 
 async function generateAISummary(reportText, cacheKey) {
-  if (!GEMINI_KEY || GEMINI_KEY === 'YOUR_GEMINI_KEY_HERE') return '';
+  if (!GEMINI_KEY || GEMINI_KEY === 'YOUR_GEMINI_KEY_HERE') return '__NO_KEY__';
   const storageKey = 'ai_sum_' + cacheKey;
   const cached = localStorage.getItem(storageKey);
   if (cached) return cached;
   try {
     const prompt = `You are summarizing a department status report for a company executive at Idaho Medical Academy. Write exactly one concise paragraph (2-4 sentences) capturing the most important highlights, progress made, and anything notable. Be direct and professional. Do not use bullet points, headers, or markdown formatting.\n\nReport:\n${reportText.substring(0, 3000)}`;
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_KEY
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { maxOutputTokens: 180, temperature: 0.3 }
@@ -666,13 +669,16 @@ async function generateAISummary(reportText, cacheKey) {
     if (!res.ok) {
       const errText = await res.text();
       console.error('Gemini API error:', res.status, errText);
-      return '';
+      return `__ERROR_${res.status}__`;
     }
     const data = await res.json();
     const summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
     if (summary) localStorage.setItem(storageKey, summary);
-    return summary;
-  } catch { return ''; }
+    return summary || '__EMPTY__';
+  } catch(e) {
+    console.error('Gemini fetch exception:', e);
+    return '__EXCEPTION__';
+  }
 }
 
 function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') {
@@ -705,7 +711,13 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
   const inProgress = [...new Set([...links.inProgress, ...(links.inProgress.length ? [] : inProgressFallback)])].slice(0, 6);
 
   const fullReportHtml = renderFullReport(statusUpdate?.html_text);
-  const hasSummary = aiSummary.length > 0;
+  const isDebugState = aiSummary.startsWith('__') && aiSummary.endsWith('__');
+  const hasSummary = aiSummary.length > 0 && !isDebugState;
+  const debugLabel = {
+    '__NO_KEY__': 'AI Summary: no API key configured',
+    '__EMPTY__': 'AI Summary: API returned empty response',
+    '__EXCEPTION__': 'AI Summary: network error (check console)',
+  }[aiSummary] || (isDebugState ? `AI Summary: API error ${aiSummary.replace(/__ERROR_(\d+)__/, '$1')} (check console)` : '');
 
   const pct = color === 'green' ? 75 : color === 'yellow' ? 45 : color === 'red' ? 20 : 60;
 
@@ -747,7 +759,8 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
     </div>
     ${hasSummary ? `
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--gray-dark);margin-bottom:4px;">AI Summary</div>
-    <p class="summary-text">${aiSummary}</p>` : ''}
+    <p class="summary-text">${aiSummary}</p>` : isDebugState ? `
+    <p style="font-size:12px;color:#c0392b;font-style:italic;margin-bottom:8px;">${debugLabel}</p>` : ''}
     ${fullReportHtml ? `
     <button class="expand-toggle-red" onclick="toggleFullReport(${idx})">
       <span id="report-lbl-${idx}">▸ View Full Report</span>
