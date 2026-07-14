@@ -670,7 +670,7 @@ function extractSection(text, heading) {
     if (!trimmed || trimmed === '---' || trimmed.match(/^-{3,}$/)) { capturing = false; continue; }
     if (trimmed.toLowerCase().includes(heading.toLowerCase())) { capturing = true; continue; }
     if (capturing) {
-      if (trimmed.toLowerCase().match(/^(what we|summary|blocked|next steps|key accomplishments|what's blocked)/i) && !trimmed.toLowerCase().includes(heading.toLowerCase())) {
+      if (trimmed.toLowerCase().match(/^(what we|summary|blocked|blockers|next steps|key accomplishments|what's blocked|in progress|key wins|milestones)/i) && !trimmed.toLowerCase().includes(heading.toLowerCase())) {
         capturing = false;
       } else if (trimmed) {
         result.push(trimmed);
@@ -745,37 +745,48 @@ function progressColor(color) {
 }
 
 function extractAsanaLinks(htmlText) {
-  if (!htmlText) return { completed: [], inProgress: [], other: [] };
+  if (!htmlText) return { completed: [], inProgress: [], other: [], wins: [] };
   const tmp = document.createElement('div');
   tmp.innerHTML = htmlText;
   const completedKw = /complet|finish|delivered|launched|shipped|achieved|done|wrapped|released/i;
   const inProgressKw = /working on|in progress|currently|underway|ongoing|building|developing|preparing|started|continuing/i;
-  // Collect known people names to explicitly exclude
+  const winsKw = /key wins|key accomplishments|accomplished/i;
   const knownPeople = new Set(Object.values(DEPT_MAP).map(d => d.lead.toLowerCase()));
-  // Person name pattern: 1-3 words, each starting with a capital letter
   const personName = /^[A-Z][A-Za-z'-]{0,20}(\s[A-Z][A-Za-z'-]{0,20}){0,2}$/;
-  const completed = [], inProgress = [], other = [];
+  const completed = [], inProgress = [], other = [], wins = [];
   tmp.querySelectorAll('a').forEach(link => {
     const name = link.textContent.trim();
     const href = link.getAttribute('href') || '';
     if (!name || name.length < 5) return;
-    // Whitelist approach: only accept links that are Asana task/project URLs
-    // Task links always have two numeric IDs: /0/{projectId}/{taskId}
-    if (!/asana\.com\/0\/\d+\/\d+/.test(href)) return;
-    // Explicitly exclude known team member names
+    // Accept both /0/{id}/{id} and /1/{id}/task/{id} Asana task URL formats
+    if (!/asana\.com\/(0\/\d+\/\d+|1\/\d+\/task\/\d+)/.test(href)) return;
     if (knownPeople.has(name.toLowerCase())) return;
-    // Exclude anything that looks like a person's name
     if (personName.test(name)) return;
+    // Get section heading context: last non-empty line before the parent <ul>/<ol>
+    const parentList = link.closest('ul, ol');
+    let sectionContext = '';
+    if (parentList) {
+      let prev = parentList.previousSibling;
+      while (prev) {
+        const t = (prev.nodeType === 3 ? prev.data : (prev.textContent || ''));
+        const lastLine = t.split('\n').map(l => l.trim()).filter(Boolean).pop();
+        if (lastLine) { sectionContext = lastLine; break; }
+        prev = prev.previousSibling;
+      }
+    }
+    // Fall back to parent block text for inline context
     let block = link.parentElement;
     while (block && !['P','LI','DIV'].includes(block.tagName)) block = block.parentElement;
     const blockText = block ? block.textContent : '';
     const pos = blockText.indexOf(name);
     const context = blockText.substring(Math.max(0, pos - 120), pos + name.length + 60);
-    if (completedKw.test(context)) completed.push(name);
-    else if (inProgressKw.test(context)) inProgress.push(name);
+    // Categorize by section heading first, then inline context
+    if (winsKw.test(sectionContext)) wins.push(name);
+    else if (completedKw.test(sectionContext) || completedKw.test(context)) completed.push(name);
+    else if (inProgressKw.test(sectionContext) || inProgressKw.test(context)) inProgress.push(name);
     else other.push(name);
   });
-  return { completed, inProgress, other };
+  return { completed, inProgress, other, wins };
 }
 
 function renderFullReport(htmlText) {
@@ -862,14 +873,19 @@ function buildDeptCard(deptName, dept, statusUpdate, goal, idx, aiSummary = '') 
   const color = statusUpdate?.color || goal?.status || 'green';
   const date = statusUpdate ? new Date(statusUpdate.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
 
+  const links = extractAsanaLinks(statusUpdate?.html_text);
+
   const winsRaw = extractSection(rawText, "accomplished");
   const winsRaw2 = extractSection(rawText, "key accomplishments");
-  const wins = [...winsRaw, ...winsRaw2].filter(Boolean).slice(0, 4);
+  const winsRaw3 = extractSection(rawText, "key wins");
+  const winsFallback = [...new Set([...winsRaw, ...winsRaw2, ...winsRaw3])].filter(Boolean);
+  const wins = [...new Set([...links.wins, ...(links.wins.length ? [] : winsFallback)])].slice(0, 4);
 
-  const blockers = extractSection(rawText, "blocked");
+  const blockers = [...new Set([
+    ...extractSection(rawText, "blocked"),
+    ...extractSection(rawText, "blockers"),
+  ])].filter(Boolean).slice(0, 5);
   const nextSteps = extractSection(rawText, "next steps").join(' ');
-
-  const links = extractAsanaLinks(statusUpdate?.html_text);
   const completedFallback = [...new Set([
     ...extractSection(rawText, "completed"),
     ...extractSection(rawText, "milestones completed"),
